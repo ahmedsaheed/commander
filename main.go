@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"log"
 )
 
@@ -23,13 +24,12 @@ var docStyle = lipgloss.NewStyle().Margin(1, 2).Render
 var border = lipgloss.NewStyle().
 	BorderStyle(lipgloss.RoundedBorder()).
 	BorderForeground(lipgloss.Color("228")).
-	BorderBackground(lipgloss.Color("63")).
 	BorderTop(true).
 	BorderLeft(true).
 	BorderRight(true).BorderBottom(true).Render
-
+var color = termenv.EnvColorProfile().Color
 var ruler = lipgloss.NewStyle().BorderBottom(true).BorderTop(true).BorderBackground(lipgloss.Color("228")).Foreground(lipgloss.Color("175")).MaxWidth(30).Render
-var greyText = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render
+var greyText = termenv.Style{}.Foreground(color("241")).Styled
 var MainRuler = lipgloss.NewStyle().
 	Border(lipgloss.ThickBorder(), true, false).Render
 
@@ -39,8 +39,9 @@ type model struct {
 	response  string
 	err       error
 	spinner   spinner.Model
-	mounted   bool
 	isReady   bool
+	altscreen bool
+	quitting  bool
 }
 
 type uiState int
@@ -60,6 +61,7 @@ func (m model) Init() tea.Cmd {
 }
 
 func initialModel() model {
+
 	ti := textinput.New()
 	ti.Placeholder = "I'm at yor service, what can I do for you?"
 	ti.Focus()
@@ -108,6 +110,7 @@ func getCommand(word string) string {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.uiState {
 	case uiMainPage:
+		var cmd tea.Cmd
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch msg.String() {
@@ -115,35 +118,41 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 
 			case "enter":
+
 				m.uiState = uiIsLoading
 				m.spinner = spinner.New()
 				m.spinner.Spinner = spinner.Pulse
 				m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-				var cmd tea.Cmd
 				m.spinner, cmd = m.spinner.Update(msg)
 				if m.textInput.Value() != "" {
 					m.response = getCommand(m.textInput.Value())
 					m.isReady = true
 					m.uiState = uiLoaded
 
+				} else {
+					m.isReady = false
+					m.uiState = uiMainPage
+					println("Please enter a command")
 				}
 
 				return m, cmd
 			}
 		}
 
-		var cmd tea.Cmd
 		m.textInput, cmd = m.textInput.Update(msg)
 		return m, cmd
 
 	case uiLoaded:
+		var cmd tea.Cmd
+		cmd = tea.EnterAltScreen
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "ctrl+c", "esc":
 				return m, tea.Quit
 			case "ctrl+n":
+				cmd = tea.EnterAltScreen
 				m.uiState = uiMainPage
 				m.textInput.Focus()
 				m.textInput.SetValue("")
@@ -152,7 +161,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		}
 
-		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	}
@@ -163,11 +171,12 @@ func (m model) View() string {
 
 	switch m.uiState {
 	case uiMainPage:
+
 		return border(
 			docStyle(fmt.Sprintf(
-				textStyle("Commander")+"\n\n%s\n\n%s",
+				textStyle("Commander")+"\n\n%s\n\n\n%s",
 				m.textInput.View(),
-				greyText("Esc to quit"),
+				greyText("  esc: exit\n"),
 			) + "\n"))
 	case uiIsLoading:
 		return fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking..."))
@@ -177,7 +186,7 @@ func (m model) View() string {
 
 			MainRuler(ruler(m.response)),
 
-			greyText("Esc to quit Or ctrl+n to start a new search"),
+			greyText("   ctrl+n: new search modes • esc: exit\n"),
 		) + "\n"))
 
 	default:

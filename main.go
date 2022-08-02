@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"log"
+	"time"
 )
 
 type response string
@@ -18,6 +19,11 @@ type model struct {
 	response  string
 	err       error
 }
+
+const (
+	padding  = 2
+	maxWidth = 80
+)
 
 func initialModel() model {
 	ti := textinput.New()
@@ -32,6 +38,13 @@ func initialModel() model {
 		err:       nil,
 	}
 }
+func progressor() model {
+	return model{
+		progress: progress.New(progress.WithDefaultGradient()),
+	}
+}
+
+type tickMsg time.Time
 
 func (m model) Init() tea.Cmd {
 	return textinput.Blink
@@ -64,6 +77,12 @@ func getCommand(word string) string {
 
 }
 
+func tickCmd() tea.Cmd {
+	return tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
@@ -78,12 +97,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.response = getCommand(m.textInput.Value())
 				println(getCommand(m.textInput.Value()))
 				println()
-				return m, tea.Quit
+				return m, tea.Batch(tickCmd(), cmd)
 			} else {
 				cmd = textinput.Blink
 			}
 
 		}
+	case tea.WindowSizeMsg:
+		m.progress.Width = msg.Width - padding*2 - 4
+		if m.progress.Width > maxWidth {
+			m.progress.Width = maxWidth
+		}
+		return m, nil
+
+	case tickMsg:
+		if m.progress.Percent() == 1.0 {
+			return m, tea.Quit
+		}
+
+		// Note that you can also use progress.Model.SetPercent to set the
+		// percentage value explicitly, too.
+		cmd := m.progress.IncrPercent(0.25)
+		return m, tea.Batch(tickCmd(), cmd)
+
+	// FrameMsg is sent when the progress bar wants to animate itself
+	case progress.FrameMsg:
+		progressModel, cmd := m.progress.Update(msg)
+		m.progress = progressModel.(progress.Model)
+		return m, cmd
 
 		//case response:
 		//	m.response = string(msg)
@@ -111,8 +152,8 @@ func (m model) View() string {
 	) + "\n"
 }
 
-////_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
-//
+//_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
+
 func main() {
 	p := tea.NewProgram(initialModel())
 

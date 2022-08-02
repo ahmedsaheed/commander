@@ -29,6 +29,7 @@ type model struct {
 	mounted   bool
 	isReady   bool
 }
+
 type uiState int
 
 func (m model) Init() tea.Cmd {
@@ -111,7 +112,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.response = getCommand(m.textInput.Value())
 					m.isReady = true
 					m.uiState = uiLoaded
-					return m, tea.Quit
+
 				}
 
 				return m, cmd
@@ -148,15 +149,15 @@ func (m model) View() string {
 			"(esc to quit)",
 		) + "\n"
 	case uiIsLoading:
-		return docStyle.Render(fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking...")))
+		return fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking..."))
 	case uiLoaded:
-		return docStyle.Render(fmt.Sprintf(
-			"🔎 Searched: "+m.textInput.Value()+"\n\n%s\n\n%s",
+		return fmt.Sprintf(
+			"\n 🔎 Searched: "+m.textInput.Value()+"\n\n%s\n\n%s",
 
 			m.response,
 
-			"(esc to quit)",
-		) + "\n")
+			"Esc to quit",
+		) + "\n"
 
 	default:
 		return ""

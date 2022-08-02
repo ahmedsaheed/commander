@@ -8,37 +8,16 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/lucasb-eyer/go-colorful"
-	"github.com/muesli/termenv"
 	"log"
-	"math"
-	"strconv"
-	"strings"
 )
-
-type uiState int
 
 const (
 	uiMainPage uiState = iota
 	uiIsLoading
 	uiLoaded
-	progressBarWidth  = 71
-	progressFullChar  = "█"
-	progressEmptyChar = "░"
 )
 
-var (
-	term          = termenv.EnvColorProfile()
-	keyword       = makeFgStyle("211")
-	subtle        = makeFgStyle("241")
-	progressEmpty = subtle(progressEmptyChar)
-	dot           = colorFg(" • ", "236")
-	textStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Render
-
-	// Gradient colors we'll use for the progress bar
-	ramp = makeRamp("#B14FFF", "#00FFA3", progressBarWidth)
-)
-
+var textStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Render
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type model struct {
@@ -50,6 +29,7 @@ type model struct {
 	mounted   bool
 	isReady   bool
 }
+type uiState int
 
 func (m model) Init() tea.Cmd {
 	switch m.uiState {
@@ -64,33 +44,7 @@ func (m model) Init() tea.Cmd {
 	}
 	return nil
 }
-func makeFgStyle(color string) func(string) string {
-	return termenv.Style{}.Foreground(term.Color(color)).Styled
-}
-func colorFg(val, color string) string {
-	return termenv.String(val).Foreground(term.Color(color)).String()
-}
 
-func makeRamp(colorA, colorB string, steps float64) (s []string) {
-	cA, _ := colorful.Hex(colorA)
-	cB, _ := colorful.Hex(colorB)
-
-	for i := 0.0; i < steps; i++ {
-		c := cA.BlendLuv(cB, i/steps)
-		s = append(s, colorToHex(c))
-	}
-	return
-}
-func colorToHex(c colorful.Color) string {
-	return fmt.Sprintf("#%s%s%s", colorFloatToHex(c.R), colorFloatToHex(c.G), colorFloatToHex(c.B))
-}
-func colorFloatToHex(f float64) (s string) {
-	s = strconv.FormatInt(int64(f*255), 16)
-	if len(s) == 1 {
-		s = "0" + s
-	}
-	return
-}
 func initialModel() model {
 	ti := textinput.New()
 	ti.Placeholder = "I'm at yor service, what can I do for you?"
@@ -105,20 +59,6 @@ func initialModel() model {
 		err:       nil,
 	}
 }
-func progressbar(width int, percent float64) string {
-	w := float64(progressBarWidth)
-
-	fullSize := int(math.Round(w * percent))
-	var fullCells string
-	for i := 0; i < fullSize; i++ {
-		fullCells += termenv.String(progressFullChar).Foreground(term.Color(ramp[i])).String()
-	}
-
-	emptySize := int(w) - fullSize
-	emptyCells := strings.Repeat(progressEmpty, emptySize)
-
-	return fmt.Sprintf("%s%s %3.0f", fullCells, emptyCells, math.Round(percent*100))
-}
 
 func getCommand(word string) string {
 
@@ -132,7 +72,7 @@ func getCommand(word string) string {
 
 	resp, err := client.CompletionWithEngine(ctx, "text-davinci-002", gpt3.CompletionRequest{
 		Prompt:           []string{word},
-		MaxTokens:        gpt3.IntPtr(100),
+		MaxTokens:        gpt3.IntPtr(300),
 		Temperature:      gpt3.Float32Ptr(0),
 		FrequencyPenalty: float32(0.2),
 		PresencePenalty:  float32(0),
@@ -142,7 +82,11 @@ func getCommand(word string) string {
 		fmt.Println("Hmm, something ins't right.")
 		log.Fatalln(err)
 	}
-	return resp.Choices[0].Text
+	s := ""
+	for i := 0; i < len(resp.Choices); i++ {
+		s = s + resp.Choices[i].Text + "\n"
+	}
+	return s
 
 }
 
@@ -160,9 +104,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.spinner = spinner.New()
 				m.spinner.Spinner = spinner.Pulse
 				m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-				if m.uiState == uiIsLoading && msg.String() == "esc" {
-					return m, tea.Quit
-				}
 
 				var cmd tea.Cmd
 				m.spinner, cmd = m.spinner.Update(msg)
@@ -170,11 +111,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.response = getCommand(m.textInput.Value())
 					m.isReady = true
 					m.uiState = uiLoaded
+					return m, tea.Quit
 				}
 
 				return m, cmd
 			}
-
 		}
 
 		var cmd tea.Cmd
@@ -207,9 +148,16 @@ func (m model) View() string {
 			"(esc to quit)",
 		) + "\n"
 	case uiIsLoading:
-		return docStyle.Render(fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Spinning...")))
+		return docStyle.Render(fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking...")))
 	case uiLoaded:
-		return docStyle.Render(m.response)
+		return docStyle.Render(fmt.Sprintf(
+			"🔎 Searched: "+m.textInput.Value()+"\n\n%s\n\n%s",
+
+			m.response,
+
+			"(esc to quit)",
+		) + "\n")
+
 	default:
 		return ""
 	}

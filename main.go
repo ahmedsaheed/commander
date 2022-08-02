@@ -168,20 +168,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
+	var state string
 
 	switch m.uiState {
 	case uiMainPage:
 
-		return border(
+		state = border(
 			docStyle(fmt.Sprintf(
 				textStyle("Commander")+"\n\n%s\n\n\n%s",
 				m.textInput.View(),
 				greyText("  esc: exit\n"),
 			) + "\n"))
 	case uiIsLoading:
-		return fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking..."))
+		state = fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking..."))
 	case uiLoaded:
-		return border(docStyle(fmt.Sprintf(
+		state = border(docStyle(fmt.Sprintf(
 			"\n "+textStyle("🔎 Searched:")+" "+m.textInput.Value()+"\n\n%s\n\n%s",
 
 			MainRuler(ruler(m.response)),
@@ -189,15 +190,14 @@ func (m model) View() string {
 			greyText("   ctrl+n: new search modes • esc: exit\n"),
 		) + "\n"))
 
-	default:
-		return ""
 	}
+	return state
 }
 
 //_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
 
 func main() {
-	p := tea.NewProgram(initialModel())
+	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 
 	if err := p.Start(); err != nil {
 		log.Fatal(err)

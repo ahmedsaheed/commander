@@ -11,14 +11,38 @@ import (
 	"log"
 )
 
-type errMsg struct{ err error }
+type uiState int
+
+const (
+	uiMainPage uiState = iota
+	uiIsLoading
+	uiLoaded
+)
+
+var docStyle = lipgloss.NewStyle().Margin(1, 2)
+
 type model struct {
 	textInput textinput.Model
+	uiState   uiState
 	response  string
 	err       error
 	spinner   spinner.Model
 	mounted   bool
 	isReady   bool
+}
+
+func (m model) Init() tea.Cmd {
+	switch m.uiState {
+	case uiMainPage:
+		return textinput.Blink
+	case uiIsLoading:
+		return nil
+
+	case uiLoaded:
+		return nil
+
+	}
+	return nil
 }
 
 func initialModel() model {
@@ -30,20 +54,10 @@ func initialModel() model {
 	ti.Prompt = "🐙 "
 
 	return model{
+		uiState:   uiMainPage,
 		textInput: ti,
 		err:       nil,
 	}
-}
-
-func loadersmodel() model {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	return model{spinner: s}
-}
-
-func (m model) Init() tea.Cmd {
-	return textinput.Blink
 }
 
 func getCommand(word string) string {
@@ -73,46 +87,68 @@ func getCommand(word string) string {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "esc":
-			return m, tea.Quit
-
-		case "enter":
-			if m.textInput.Value() != "" {
-				m.isReady = true
-				//m.spinner, cmd = m.spinner.Update(msg)
-				m.response = getCommand(m.textInput.Value())
-				//m.mounted = true
+	switch m.uiState {
+	case uiMainPage:
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "ctrl+c", "esc":
 				return m, tea.Quit
-			} else {
-				cmd = textinput.Blink
+
+			case "enter":
+				m.uiState = uiIsLoading
+				m.spinner = spinner.New()
+				m.spinner.Spinner = spinner.Dot
+				m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+				var cmd tea.Cmd
+				m.spinner, cmd = m.spinner.Update(msg)
+				if m.textInput.Value() != "" {
+					m.response = getCommand(m.textInput.Value())
+					m.isReady = true
+					m.uiState = uiLoaded
+				}
+
+				return m, cmd
+			}
+
+		}
+
+		var cmd tea.Cmd
+		m.textInput, cmd = m.textInput.Update(msg)
+		return m, cmd
+
+	case uiLoaded:
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "ctrl+c", "esc":
+				return m, tea.Quit
 			}
 		}
-	}
 
-	m.textInput, cmd = m.textInput.Update(msg)
-	return m, cmd
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	}
+	return m, nil
 }
 
 func (m model) View() string {
 
-	if m.err != nil {
-		return fmt.Sprintf("Error: %s", m.err)
-	} else if !m.isReady {
+	switch m.uiState {
+	case uiMainPage:
 		return fmt.Sprintf(
-			"Commander\n\n%s\n\n%s",
+			"Search: \n\n%s\n\n%s",
 			m.textInput.View(),
-			"enter confirm • esc quit",
+			"(esc to quit)",
 		) + "\n"
-
+	case uiIsLoading:
+		return docStyle.Render(m.spinner.View())
+	case uiLoaded:
+		return docStyle.Render(m.response)
+	default:
+		return ""
 	}
-
-	return fmt.Sprintf("\n\n   %s \n\n", m.response)
-
 }
 
 //_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_

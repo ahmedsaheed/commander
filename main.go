@@ -17,8 +17,21 @@ const (
 	uiLoaded
 )
 
-var textStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Render
-var docStyle = lipgloss.NewStyle().Margin(1, 2)
+var textStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("175")).Bold(true).Render
+var docStyle = lipgloss.NewStyle().Margin(1, 2).Render
+
+var border = lipgloss.NewStyle().
+	BorderStyle(lipgloss.RoundedBorder()).
+	BorderForeground(lipgloss.Color("228")).
+	BorderBackground(lipgloss.Color("63")).
+	BorderTop(true).
+	BorderLeft(true).
+	BorderRight(true).BorderBottom(true).Render
+
+var ruler = lipgloss.NewStyle().BorderBottom(true).BorderTop(true).BorderBackground(lipgloss.Color("228")).Foreground(lipgloss.Color("175")).MaxWidth(30).Render
+var greyText = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render
+var MainRuler = lipgloss.NewStyle().
+	Border(lipgloss.ThickBorder(), true, false).Render
 
 type model struct {
 	textInput textinput.Model
@@ -73,15 +86,16 @@ func getCommand(word string) string {
 
 	resp, err := client.CompletionWithEngine(ctx, "text-davinci-002", gpt3.CompletionRequest{
 		Prompt:           []string{word},
-		MaxTokens:        gpt3.IntPtr(300),
+		MaxTokens:        gpt3.IntPtr(450),
 		Temperature:      gpt3.Float32Ptr(0),
 		FrequencyPenalty: float32(0.2),
 		PresencePenalty:  float32(0),
 		TopP:             gpt3.Float32Ptr(1),
 	})
 	if err != nil {
-		fmt.Println("Hmm, something ins't right.")
+		fmt.Println("Alas, something went wrong.")
 		log.Fatalln(err)
+		return "Error" + err.Error()
 	}
 	s := ""
 	for i := 0; i < len(resp.Choices); i++ {
@@ -97,7 +111,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch msg.String() {
-			case "ctrl+c", "esc":
+			case "esc":
 				return m, tea.Quit
 
 			case "enter":
@@ -129,7 +143,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "ctrl+c", "esc":
 				return m, tea.Quit
+			case "ctrl+n":
+				m.uiState = uiMainPage
+				m.textInput.Focus()
+				m.textInput.SetValue("")
+
 			}
+
 		}
 
 		var cmd tea.Cmd
@@ -143,21 +163,22 @@ func (m model) View() string {
 
 	switch m.uiState {
 	case uiMainPage:
-		return fmt.Sprintf(
-			"Search: \n\n%s\n\n%s",
-			m.textInput.View(),
-			"(esc to quit)",
-		) + "\n"
+		return border(
+			docStyle(fmt.Sprintf(
+				textStyle("Commander")+"\n\n%s\n\n%s",
+				m.textInput.View(),
+				greyText("Esc to quit"),
+			) + "\n"))
 	case uiIsLoading:
 		return fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking..."))
 	case uiLoaded:
-		return fmt.Sprintf(
-			"\n 🔎 Searched: "+m.textInput.Value()+"\n\n%s\n\n%s",
+		return border(docStyle(fmt.Sprintf(
+			"\n "+textStyle("🔎 Searched:")+" "+m.textInput.Value()+"\n\n%s\n\n%s",
 
-			m.response,
+			MainRuler(ruler(m.response)),
 
-			"Esc to quit",
-		) + "\n"
+			greyText("Esc to quit Or ctrl+n to start a new search"),
+		) + "\n"))
 
 	default:
 		return ""

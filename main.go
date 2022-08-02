@@ -4,26 +4,22 @@ import (
 	"context"
 	"fmt"
 	"github.com/PullRequestInc/go-gpt3"
-	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"log"
-	"time"
 )
 
-type response string
 type errMsg struct{ err error }
 type model struct {
 	textInput textinput.Model
-	progress  progress.Model
 	response  string
 	err       error
+	spinner   spinner.Model
+	mounted   bool
+	isReady   bool
 }
-
-const (
-	padding  = 2
-	maxWidth = 80
-)
 
 func initialModel() model {
 	ti := textinput.New()
@@ -38,13 +34,13 @@ func initialModel() model {
 		err:       nil,
 	}
 }
-func progressor() model {
-	return model{
-		progress: progress.New(progress.WithDefaultGradient()),
-	}
-}
 
-type tickMsg time.Time
+func loadersmodel() model {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	return model{spinner: s}
+}
 
 func (m model) Init() tea.Cmd {
 	return textinput.Blink
@@ -72,15 +68,8 @@ func getCommand(word string) string {
 		fmt.Println("Hmm, something ins't right.")
 		log.Fatalln(err)
 	}
-	//fmt.Println(resp)
 	return resp.Choices[0].Text
 
-}
-
-func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -94,46 +83,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			if m.textInput.Value() != "" {
+				m.isReady = true
+				//m.spinner, cmd = m.spinner.Update(msg)
 				m.response = getCommand(m.textInput.Value())
-				println(getCommand(m.textInput.Value()))
-				println()
-				return m, tea.Batch(tickCmd(), cmd)
+				//m.mounted = true
+				return m, tea.Quit
 			} else {
 				cmd = textinput.Blink
 			}
-
 		}
-	case tea.WindowSizeMsg:
-		m.progress.Width = msg.Width - padding*2 - 4
-		if m.progress.Width > maxWidth {
-			m.progress.Width = maxWidth
-		}
-		return m, nil
-
-	case tickMsg:
-		if m.progress.Percent() == 1.0 {
-			return m, tea.Quit
-		}
-
-		// Note that you can also use progress.Model.SetPercent to set the
-		// percentage value explicitly, too.
-		cmd := m.progress.IncrPercent(0.25)
-		return m, tea.Batch(tickCmd(), cmd)
-
-	// FrameMsg is sent when the progress bar wants to animate itself
-	case progress.FrameMsg:
-		progressModel, cmd := m.progress.Update(msg)
-		m.progress = progressModel.(progress.Model)
-		return m, cmd
-
-		//case response:
-		//	m.response = string(msg)
-		//	return m, tea.Quit
-		//
-		//// We handle errors just like any other message
-		//case errMsg:
-		//	m.err = msg.err
-		//	return m, tea.Quit
 	}
 
 	m.textInput, cmd = m.textInput.Update(msg)
@@ -144,12 +102,17 @@ func (m model) View() string {
 
 	if m.err != nil {
 		return fmt.Sprintf("Error: %s", m.err)
+	} else if !m.isReady {
+		return fmt.Sprintf(
+			"Commander\n\n%s\n\n%s",
+			m.textInput.View(),
+			"enter confirm • esc quit",
+		) + "\n"
+
 	}
-	return fmt.Sprintf(
-		"Commander\n\n%s\n\n%s",
-		m.textInput.View(),
-		"enter confirm • esc quit",
-	) + "\n"
+
+	return fmt.Sprintf("\n\n   %s \n\n", m.response)
+
 }
 
 //_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_

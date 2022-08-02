@@ -8,7 +8,12 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/lucasb-eyer/go-colorful"
+	"github.com/muesli/termenv"
 	"log"
+	"math"
+	"strconv"
+	"strings"
 )
 
 type uiState int
@@ -17,6 +22,21 @@ const (
 	uiMainPage uiState = iota
 	uiIsLoading
 	uiLoaded
+	progressBarWidth  = 71
+	progressFullChar  = "█"
+	progressEmptyChar = "░"
+)
+
+var (
+	term          = termenv.EnvColorProfile()
+	keyword       = makeFgStyle("211")
+	subtle        = makeFgStyle("241")
+	progressEmpty = subtle(progressEmptyChar)
+	dot           = colorFg(" • ", "236")
+	textStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Render
+
+	// Gradient colors we'll use for the progress bar
+	ramp = makeRamp("#B14FFF", "#00FFA3", progressBarWidth)
 )
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
@@ -44,7 +64,33 @@ func (m model) Init() tea.Cmd {
 	}
 	return nil
 }
+func makeFgStyle(color string) func(string) string {
+	return termenv.Style{}.Foreground(term.Color(color)).Styled
+}
+func colorFg(val, color string) string {
+	return termenv.String(val).Foreground(term.Color(color)).String()
+}
 
+func makeRamp(colorA, colorB string, steps float64) (s []string) {
+	cA, _ := colorful.Hex(colorA)
+	cB, _ := colorful.Hex(colorB)
+
+	for i := 0.0; i < steps; i++ {
+		c := cA.BlendLuv(cB, i/steps)
+		s = append(s, colorToHex(c))
+	}
+	return
+}
+func colorToHex(c colorful.Color) string {
+	return fmt.Sprintf("#%s%s%s", colorFloatToHex(c.R), colorFloatToHex(c.G), colorFloatToHex(c.B))
+}
+func colorFloatToHex(f float64) (s string) {
+	s = strconv.FormatInt(int64(f*255), 16)
+	if len(s) == 1 {
+		s = "0" + s
+	}
+	return
+}
 func initialModel() model {
 	ti := textinput.New()
 	ti.Placeholder = "I'm at yor service, what can I do for you?"
@@ -58,6 +104,20 @@ func initialModel() model {
 		textInput: ti,
 		err:       nil,
 	}
+}
+func progressbar(width int, percent float64) string {
+	w := float64(progressBarWidth)
+
+	fullSize := int(math.Round(w * percent))
+	var fullCells string
+	for i := 0; i < fullSize; i++ {
+		fullCells += termenv.String(progressFullChar).Foreground(term.Color(ramp[i])).String()
+	}
+
+	emptySize := int(w) - fullSize
+	emptyCells := strings.Repeat(progressEmpty, emptySize)
+
+	return fmt.Sprintf("%s%s %3.0f", fullCells, emptyCells, math.Round(percent*100))
 }
 
 func getCommand(word string) string {
@@ -98,8 +158,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				m.uiState = uiIsLoading
 				m.spinner = spinner.New()
-				m.spinner.Spinner = spinner.Dot
+				m.spinner.Spinner = spinner.Pulse
 				m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+				if m.uiState == uiIsLoading && msg.String() == "esc" {
+					return m, tea.Quit
+				}
+
 				var cmd tea.Cmd
 				m.spinner, cmd = m.spinner.Update(msg)
 				if m.textInput.Value() != "" {
@@ -143,7 +207,7 @@ func (m model) View() string {
 			"(esc to quit)",
 		) + "\n"
 	case uiIsLoading:
-		return docStyle.Render(m.spinner.View())
+		return docStyle.Render(fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Spinning...")))
 	case uiLoaded:
 		return docStyle.Render(m.response)
 	default:

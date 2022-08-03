@@ -26,15 +26,13 @@ var (
 	textStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("175")).Bold(true).Render
 	docStyle  = lipgloss.NewStyle().Padding(3).Render
 	helpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
-	border    = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("228")).
-			BorderTop(true).
-			BorderLeft(true).
-			BorderRight(true).BorderBottom(true).Render
+	// border    = lipgloss.NewStyle().
+	// 		BorderStyle(lipgloss.RoundedBorder()).
+	// 		BorderForeground(lipgloss.Color("228")).
+	// 		BorderTop(true).
+	// 		BorderLeft(true).
+	// 		BorderRight(true).BorderBottom(true).Render
 	color     = termenv.EnvColorProfile().Color
-	ruler     = lipgloss.NewStyle().BorderBottom(true).BorderTop(true).BorderBackground(lipgloss.Color("228")).Foreground(lipgloss.Color("175")).Render
-	greyText  = termenv.Style{}.Foreground(color("241")).Styled
 	MainRuler = lipgloss.NewStyle().
 			Border(lipgloss.ThickBorder(), true, false).Render
 	titleStyle = func() lipgloss.Style {
@@ -236,13 +234,6 @@ func (m model) View() string {
 	case uiIsLoading:
 		state = fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking..."))
 	case uiLoaded:
-		// state = fmt.Sprintf(
-		// 	"\n "+textStyle("\n\n🔍 Searched:")+" "+m.textInput.Value()+"\n\n%s\n\n%s",
-
-		// 	MainRuler(ruler(m.response)),
-
-		// 	helpStyle("ctrl + n: new search modes • q: exit esc: back\n"),
-		// ) + "\n"
 		state = fmt.Sprintf("%s\n%s\n%s", m.headerView(), m.viewport.View(), m.footerView())
 	}
 	return state

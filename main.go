@@ -67,7 +67,7 @@ func (m model) Init() tea.Cmd {
 func initialModel() model {
 
 	ti := textinput.New()
-	ti.Placeholder = "I'm at yor service, what can I do for you?"
+	ti.Placeholder = "Let me convert your English into code?"
 	ti.Focus()
 	ti.CharLimit = 156
 	ti.Width = 50

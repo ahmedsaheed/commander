@@ -12,7 +12,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 )
 
 const (
@@ -32,7 +31,7 @@ var (
 	// 		BorderTop(true).
 	// 		BorderLeft(true).
 	// 		BorderRight(true).BorderBottom(true).Render
-	color     = termenv.EnvColorProfile().Color
+	//color     = termenv.EnvColorProfile().Color
 	MainRuler = lipgloss.NewStyle().
 			Border(lipgloss.ThickBorder(), true, false).Render
 	titleStyle = func() lipgloss.Style {
@@ -55,7 +54,6 @@ type model struct {
 	err       error
 	spinner   spinner.Model
 	isReady   bool
-	quitting  bool
 	viewport  viewport.Model
 }
 
@@ -93,7 +91,7 @@ func initialModel() model {
 
 func getCommand(word string) string {
 
-	apiKey := "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"
+	apiKey := "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"
 	if apiKey == "" {
 		log.Fatalln("Missing API KEY")
 	}
@@ -123,9 +121,12 @@ func getCommand(word string) string {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var (
+		cmd  tea.Cmd
+		cmds []tea.Cmd
+	)
 	switch m.uiState {
 	case uiMainPage:
-		var cmd tea.Cmd
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch msg.String() {
@@ -137,19 +138,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.uiState = uiLoaded
 				return m, cmd
 			}
+
 		}
 
 		m.textInput, cmd = m.textInput.Update(msg)
 		return m, cmd
 
 	case uiLoaded:
-		var (
-			cmd  tea.Cmd
-			cmds []tea.Cmd
-		)
-
 		switch msg := msg.(type) {
-
 		case tea.WindowSizeMsg:
 			headerHeight := lipgloss.Height(m.headerView())
 			footerHeight := lipgloss.Height(m.footerView())
@@ -162,6 +158,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewport.SetContent(textStyle(m.response))
 				m.isReady = true
 				m.viewport.YPosition = headerHeight + 1
+				//panic(msg.Height - verticalMarginHeight)
 			} else {
 				m.viewport.Width = msg.Width
 				m.viewport.Height = msg.Height - verticalMarginHeight
@@ -236,6 +233,7 @@ func (m model) View() string {
 	case uiIsLoading:
 		state = fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking..."))
 	case uiLoaded:
+
 		state = fmt.Sprintf("%s\n%s\n%s", m.headerView(), m.viewport.View(), m.footerView())
 	}
 	return state

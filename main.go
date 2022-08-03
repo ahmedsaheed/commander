@@ -3,13 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+
 	"github.com/PullRequestInc/go-gpt3"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
-	"log"
 )
 
 const (
@@ -18,20 +20,22 @@ const (
 	uiLoaded
 )
 
-var textStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("175")).Bold(true).Render
-var docStyle = lipgloss.NewStyle().Margin(1, 2).Render
-
-var border = lipgloss.NewStyle().
-	BorderStyle(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.Color("228")).
-	BorderTop(true).
-	BorderLeft(true).
-	BorderRight(true).BorderBottom(true).Render
-var color = termenv.EnvColorProfile().Color
-var ruler = lipgloss.NewStyle().BorderBottom(true).BorderTop(true).BorderBackground(lipgloss.Color("228")).Foreground(lipgloss.Color("175")).MaxWidth(30).Render
-var greyText = termenv.Style{}.Foreground(color("241")).Styled
-var MainRuler = lipgloss.NewStyle().
-	Border(lipgloss.ThickBorder(), true, false).Render
+var (
+	textStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("175")).Bold(true).Render
+	docStyle  = lipgloss.NewStyle().Padding(3).Render
+	helpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
+	border    = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("228")).
+			BorderTop(true).
+			BorderLeft(true).
+			BorderRight(true).BorderBottom(true).Render
+	color     = termenv.EnvColorProfile().Color
+	ruler     = lipgloss.NewStyle().BorderBottom(true).BorderTop(true).BorderBackground(lipgloss.Color("228")).Foreground(lipgloss.Color("175")).Render
+	greyText  = termenv.Style{}.Foreground(color("241")).Styled
+	MainRuler = lipgloss.NewStyle().
+			Border(lipgloss.ThickBorder(), true, false).Render
+)
 
 type model struct {
 	textInput textinput.Model
@@ -42,6 +46,7 @@ type model struct {
 	isReady   bool
 	altscreen bool
 	quitting  bool
+	viewport  viewport.Model
 }
 
 type uiState int
@@ -67,11 +72,17 @@ func initialModel() model {
 	ti.Focus()
 	ti.CharLimit = 156
 	ti.Width = 50
-	ti.Prompt = "🐙 "
+	ti.Prompt = "🔍 "
+	vp := viewport.New(78, 20)
+	vp.Style = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		PaddingRight(2)
 
 	return model{
 		uiState:   uiMainPage,
 		textInput: ti,
+		viewport:  vp,
 		err:       nil,
 	}
 }
@@ -133,7 +144,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.isReady = false
 					m.uiState = uiMainPage
-					println("Please enter a command")
+
 				}
 
 				return m, cmd
@@ -145,18 +156,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case uiLoaded:
 		var cmd tea.Cmd
-		cmd = tea.EnterAltScreen
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch msg.String() {
-			case "ctrl+c", "esc":
+			case "q":
 				return m, tea.Quit
 			case "ctrl+n":
-				cmd = tea.EnterAltScreen
 				m.uiState = uiMainPage
 				m.textInput.Focus()
 				m.textInput.SetValue("")
 
+			case "esc":
+				m.uiState = uiMainPage
+				m.textInput.Blink()
+				m.textInput.SetValue(m.textInput.Value())
+
+			case "ctrl+q":
+				cmd = tea.Quit
 			}
 
 		}
@@ -166,6 +182,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
+func (m model) helpView() string {
+	return helpStyle("\n  ↑/↓: Navigate • q: Quit\n")
+}
 
 func (m model) View() string {
 	var state string
@@ -173,23 +192,22 @@ func (m model) View() string {
 	switch m.uiState {
 	case uiMainPage:
 
-		state = border(
+		state =
 			docStyle(fmt.Sprintf(
 				textStyle("Commander")+"\n\n%s\n\n\n%s",
 				m.textInput.View(),
-				greyText("  esc: exit\n"),
-			) + "\n"))
+				helpStyle("enter: confirm exit • esc: exit\n"),
+			) + "\n")
 	case uiIsLoading:
 		state = fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking..."))
 	case uiLoaded:
-		state = border(docStyle(fmt.Sprintf(
-			"\n "+textStyle("🔎 Searched:")+" "+m.textInput.Value()+"\n\n%s\n\n%s",
+		state = fmt.Sprintf(
+			"\n "+textStyle("\n\n🔍 Searched:")+" "+m.textInput.Value()+"\n\n%s\n\n%s",
 
 			MainRuler(ruler(m.response)),
 
-			greyText("   ctrl+n: new search modes • esc: exit\n"),
-		) + "\n"))
-
+			helpStyle("ctrl + n: new search modes • q: exit esc: back\n"),
+		) + "\n"
 	}
 	return state
 }

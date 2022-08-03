@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/PullRequestInc/go-gpt3"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -18,6 +19,7 @@ const (
 	uiMainPage uiState = iota
 	uiIsLoading
 	uiLoaded
+	useHighPerformanceRenderer = false
 )
 
 var (
@@ -35,6 +37,17 @@ var (
 	greyText  = termenv.Style{}.Foreground(color("241")).Styled
 	MainRuler = lipgloss.NewStyle().
 			Border(lipgloss.ThickBorder(), true, false).Render
+	titleStyle = func() lipgloss.Style {
+		b := lipgloss.RoundedBorder()
+		b.Right = "├"
+		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1)
+	}()
+
+	infoStyle = func() lipgloss.Style {
+		b := lipgloss.RoundedBorder()
+		b.Left = "┤"
+		return titleStyle.Copy().BorderStyle(b)
+	}()
 )
 
 type model struct {
@@ -72,16 +85,10 @@ func initialModel() model {
 	ti.CharLimit = 156
 	ti.Width = 50
 	ti.Prompt = "🔍 "
-	vp := viewport.New(78, 20)
-	vp.Style = lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		PaddingRight(2)
 
 	return model{
 		uiState:   uiMainPage,
 		textInput: ti,
-		viewport:  vp,
 		err:       nil,
 	}
 }
@@ -128,24 +135,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 
 			case "enter":
-
-				m.uiState = uiIsLoading
-				m.spinner = spinner.New()
-				m.spinner.Spinner = spinner.Pulse
-				m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-
-				m.spinner, cmd = m.spinner.Update(msg)
-				if m.textInput.Value() != "" {
-					m.response = getCommand(m.textInput.Value())
-					m.isReady = true
-					m.uiState = uiLoaded
-
-				} else {
-					m.isReady = false
-					m.uiState = uiMainPage
-
-				}
-
+				m.response = getCommand(m.textInput.Value())
+				m.uiState = uiLoaded
 				return m, cmd
 			}
 		}
@@ -154,8 +145,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case uiLoaded:
-		var cmd tea.Cmd
+		var (
+			cmd  tea.Cmd
+			cmds []tea.Cmd
+		)
+
 		switch msg := msg.(type) {
+
+		case tea.WindowSizeMsg:
+			headerHeight := lipgloss.Height(m.headerView())
+			footerHeight := lipgloss.Height(m.footerView())
+			verticalMarginHeight := headerHeight + footerHeight
+
+			if !m.isReady {
+				m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
+				m.viewport.YPosition = headerHeight
+				m.viewport.HighPerformanceRendering = useHighPerformanceRenderer
+				m.viewport.SetContent(textStyle(m.response))
+				m.isReady = true
+				m.viewport.YPosition = headerHeight + 1
+			} else {
+				m.viewport.Width = msg.Width
+				m.viewport.Height = msg.Height - verticalMarginHeight
+			}
+
+			if useHighPerformanceRenderer {
+				cmds = append(cmds, viewport.Sync(m.viewport))
+			}
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "q":
@@ -176,13 +192,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		}
 
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
 	}
 	return m, nil
 }
 func (m model) helpView() string {
 	return helpStyle("\n  ↑/↓: Navigate • q: Quit\n")
+}
+
+func (m model) headerView() string {
+	title := titleStyle.Render(m.textInput.Value())
+	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(title)))
+	return lipgloss.JoinHorizontal(lipgloss.Center, title, line)
+}
+
+func (m model) footerView() string {
+	info := infoStyle.Render(fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100))
+	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(info)))
+	return lipgloss.JoinHorizontal(lipgloss.Center, line, info)
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func (m model) View() string {
@@ -200,13 +236,14 @@ func (m model) View() string {
 	case uiIsLoading:
 		state = fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking..."))
 	case uiLoaded:
-		state = fmt.Sprintf(
-			"\n "+textStyle("\n\n🔍 Searched:")+" "+m.textInput.Value()+"\n\n%s\n\n%s",
+		// state = fmt.Sprintf(
+		// 	"\n "+textStyle("\n\n🔍 Searched:")+" "+m.textInput.Value()+"\n\n%s\n\n%s",
 
-			MainRuler(ruler(m.response)),
+		// 	MainRuler(ruler(m.response)),
 
-			helpStyle("ctrl + n: new search modes • q: exit esc: back\n"),
-		) + "\n"
+		// 	helpStyle("ctrl + n: new search modes • q: exit esc: back\n"),
+		// ) + "\n"
+		state = fmt.Sprintf("%s\n%s\n%s", m.headerView(), m.viewport.View(), m.footerView())
 	}
 	return state
 }
@@ -214,7 +251,7 @@ func (m model) View() string {
 //_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
 
 func main() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	p := tea.NewProgram(initialModel(), tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	if err := p.Start(); err != nil {
 		log.Fatal(err)

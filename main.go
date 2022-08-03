@@ -93,7 +93,7 @@ func initialModel() model {
 
 func getCommand(word string) string {
 
-	apiKey := "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"
+	apiKey := "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"
 	if apiKey == "" {
 		log.Fatalln("Missing API KEY")
 	}
@@ -175,17 +175,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "q":
 				return m, tea.Quit
 			case "ctrl+n":
+				m.isReady = false
+				m.response = ""
 				m.uiState = uiMainPage
 				m.textInput.Focus()
 				m.textInput.SetValue("")
 
 			case "esc":
+				m.isReady = false
+				m.response = ""
 				m.uiState = uiMainPage
 				m.textInput.Blink()
 				m.textInput.SetValue(m.textInput.Value())
 
-			case "ctrl+q":
-				cmd = tea.Quit
 			}
 
 		}

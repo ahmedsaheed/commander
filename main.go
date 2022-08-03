@@ -23,13 +23,6 @@ var (
 	textStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("175")).Bold(true).Render
 	docStyle  = lipgloss.NewStyle().Padding(3).Render
 	helpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
-	// border    = lipgloss.NewStyle().
-	// 		BorderStyle(lipgloss.RoundedBorder()).
-	// 		BorderForeground(lipgloss.Color("228")).
-	// 		BorderTop(true).
-	// 		BorderLeft(true).
-	// 		BorderRight(true).BorderBottom(true).Render
-	//color     = termenv.EnvColorProfile().Color
 	MainRuler = lipgloss.NewStyle().
 			Border(lipgloss.ThickBorder(), true, false).Render
 	titleStyle = func() lipgloss.Style {
@@ -86,37 +79,6 @@ func initialModel() model {
 		err:       nil,
 	}
 }
-
-// func getCommand(word string) string {
-
-// 	apiKey := "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"
-// 	if apiKey == "" {
-// 		log.Fatalln("Missing API KEY")
-// 	}
-
-// 	ctx := context.Background()
-// 	client := gpt3.NewClient(apiKey)
-
-// 	resp, err := client.CompletionWithEngine(ctx, "text-davinci-002", gpt3.CompletionRequest{
-// 		Prompt:           []string{word},
-// 		MaxTokens:        gpt3.IntPtr(450),
-// 		Temperature:      gpt3.Float32Ptr(0),
-// 		FrequencyPenalty: float32(0.2),
-// 		PresencePenalty:  float32(0),
-// 		TopP:             gpt3.Float32Ptr(1),
-// 	})
-// 	if err != nil {
-// 		fmt.Println("Alas, something went wrong.")
-// 		log.Fatalln(err)
-// 		return "Error" + err.Error()
-// 	}
-// 	s := ""
-// 	for i := 0; i < len(resp.Choices); i++ {
-// 		s = s + resp.Choices[i].Text + "\n"
-// 	}
-// 	return s
-
-// }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
@@ -193,8 +155,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
-func (m model) helpView() string {
-	return helpStyle("\n  ↑/↓: Navigate • q: Quit\n")
+func (m model) helpView(help string) string {
+	return helpStyle("\n  " + help + " \n")
 }
 
 func (m model) headerView() string {
@@ -226,7 +188,7 @@ func (m model) View() string {
 			docStyle(fmt.Sprintf(
 				textStyle("Commander")+"\n\n%s\n\n\n%s",
 				m.textInput.View(),
-				helpStyle("enter: confirm exit • esc: exit\n"),
+				m.helpView("enter: confirm exit • esc: exit\n"),
 			) + "\n")
 	case uiIsLoading:
 		state = fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking..."))

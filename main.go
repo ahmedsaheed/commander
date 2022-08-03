@@ -44,7 +44,6 @@ type model struct {
 	err       error
 	spinner   spinner.Model
 	isReady   bool
-	altscreen bool
 	quitting  bool
 	viewport  viewport.Model
 }

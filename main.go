@@ -88,6 +88,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.uiState {
 	case uiMainPage:
 		switch msg := msg.(type) {
+		case tea.WindowSizeMsg:
+			headerHeight := lipgloss.Height(m.headerView())
+			footerHeight := lipgloss.Height(m.footerView())
+			verticalMarginHeight := headerHeight + footerHeight
+
+			if !m.isReady {
+				m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
+				m.viewport.YPosition = headerHeight
+				m.viewport.HighPerformanceRendering = useHighPerformanceRenderer
+				// m.viewport.SetContent(textStyle(m.response))
+				// m.isReady = true
+				m.viewport.YPosition = headerHeight + 1
+				//panic(msg.Height - verticalMarginHeight)
+			} else {
+				m.viewport.Width = msg.Width
+				m.viewport.Height = msg.Height - verticalMarginHeight
+			}
+
+			// if useHighPerformanceRenderer {
+			// 	cmds = append(cmds, viewport.Sync(m.viewport))
+			// }
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "esc":
@@ -105,28 +126,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case uiLoaded:
+
+		if !m.isReady {
+			m.viewport.SetContent(textStyle(m.response))
+			m.isReady = true
+		} else {
+			m.viewport.SetContent(" ")
+		}
+
+		if useHighPerformanceRenderer {
+			cmds = append(cmds, viewport.Sync(m.viewport))
+		}
 		switch msg := msg.(type) {
-		case tea.WindowSizeMsg:
-			headerHeight := lipgloss.Height(m.headerView())
-			footerHeight := lipgloss.Height(m.footerView())
-			verticalMarginHeight := headerHeight + footerHeight
-
-			if !m.isReady {
-				m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
-				m.viewport.YPosition = headerHeight
-				m.viewport.HighPerformanceRendering = useHighPerformanceRenderer
-				m.viewport.SetContent(textStyle(m.response))
-				m.isReady = true
-				m.viewport.YPosition = headerHeight + 1
-				//panic(msg.Height - verticalMarginHeight)
-			} else {
-				m.viewport.Width = msg.Width
-				m.viewport.Height = msg.Height - verticalMarginHeight
-			}
-
-			if useHighPerformanceRenderer {
-				cmds = append(cmds, viewport.Sync(m.viewport))
-			}
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "q":
@@ -155,6 +166,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
+
 func (m model) helpView(help string) string {
 	return helpStyle("\n  " + help + " \n")
 }

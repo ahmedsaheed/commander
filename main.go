@@ -97,18 +97,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
 				m.viewport.YPosition = headerHeight
 				m.viewport.HighPerformanceRendering = useHighPerformanceRenderer
-				// m.viewport.SetContent(textStyle(m.response))
-				// m.isReady = true
 				m.viewport.YPosition = headerHeight + 1
-				//panic(msg.Height - verticalMarginHeight)
 			} else {
 				m.viewport.Width = msg.Width
 				m.viewport.Height = msg.Height - verticalMarginHeight
 			}
-
-			// if useHighPerformanceRenderer {
-			// 	cmds = append(cmds, viewport.Sync(m.viewport))
-			// }
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "esc":
@@ -128,8 +121,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case uiLoaded:
 
 		if !m.isReady {
-			m.viewport.SetContent(textStyle(m.response))
+			// m.viewport = viewport.New(m.viewport.Width, m.viewport.Height)
+            m.viewport.SetContent(textStyle(m.response))
 			m.isReady = true
+
 		} else {
 			m.viewport.SetContent(" ")
 		}
@@ -205,7 +200,6 @@ func (m model) View() string {
 	case uiIsLoading:
 		state = fmt.Sprintf("\n %s%s%s\n\n", m.spinner.View(), " ", textStyle("Thinking..."))
 	case uiLoaded:
-
 		state = fmt.Sprintf("%s\n%s\n%s", m.headerView(), m.viewport.View(), m.footerView())
 	}
 	return state
@@ -214,7 +208,7 @@ func (m model) View() string {
 //_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
 
 func main() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 
 	if err := p.Start(); err != nil {
 		log.Fatal(err)

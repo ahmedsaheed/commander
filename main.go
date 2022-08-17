@@ -46,6 +46,7 @@ type model struct {
 	spinner   spinner.Model
 	isReady   bool
 	viewport  viewport.Model
+	isLoading bool
 }
 
 type uiState int
@@ -119,20 +120,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case uiLoaded:
-
-		if !m.isReady {
-			// m.viewport = viewport.New(m.viewport.Width, m.viewport.Height)
-            m.viewport.SetContent(textStyle(m.response))
-			m.isReady = true
-
-		} else {
-			m.viewport.SetContent(" ")
-		}
-
-		if useHighPerformanceRenderer {
-			cmds = append(cmds, viewport.Sync(m.viewport))
-		}
+		m.isLoading = true
 		switch msg := msg.(type) {
+		case tea.WindowSizeMsg:
+			headerHeight := lipgloss.Height(m.headerView())
+			footerHeight := lipgloss.Height(m.footerView())
+			verticalMarginHeight := headerHeight + footerHeight
+			if !m.isReady {
+				m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
+				m.viewport.YPosition = headerHeight
+				m.viewport.HighPerformanceRendering = useHighPerformanceRenderer
+				m.viewport.YPosition = headerHeight + 1
+				m.viewport.SetContent(textStyle(m.response))
+				m.isReady = true
+			} else {
+				m.viewport.Width = msg.Width
+				m.viewport.Height = msg.Height - verticalMarginHeight
+			}
+			if useHighPerformanceRenderer {
+				cmds = append(cmds, viewport.Sync(m.viewport))
+			}
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "q":
@@ -154,7 +161,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		}
-
 		m.viewport, cmd = m.viewport.Update(msg)
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
@@ -205,10 +211,10 @@ func (m model) View() string {
 	return state
 }
 
-//_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
+//_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
 
 func main() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	p := tea.NewProgram(initialModel(), tea.WithAltScreen(), tea.WithMouseAllMotion())
 
 	if err := p.Start(); err != nil {
 		log.Fatal(err)

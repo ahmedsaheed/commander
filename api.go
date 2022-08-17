@@ -36,7 +36,7 @@ func getCommand(word string) string {
 		return "Error" + err.Error()
 	}
 	s := ""
-	for i := 0; i < len(resp.Choices); i++ {
+    for i := 0; i < len(resp.Choices); i++ {
 		s = s + resp.Choices[i].Text + "\n"
 	}
 	return s
